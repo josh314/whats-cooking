@@ -66,6 +66,6 @@ predicted = text_clf.predict(test_data)
 recipes_test.drop('ingredients',axis=1,inplace=True)
 recipes_test.insert(1,'cuisine',predicted)
 print("Saving predictions to file")
-recipes_test.to_csv('/Users/josh/dev/kaggle/whats-cooking/sub/basic_bag.csv',index=False)
+recipes_test.to_csv('/Users/josh/dev/kaggle/whats-cooking/sub/basic_bag_bayes.csv',index=False)
 
 
