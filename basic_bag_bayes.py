@@ -21,6 +21,7 @@ ingredients_master_list = sorted(list({ingredient for recipe in recipes_train_js
 sep = "::"
 recipes_train = pd.DataFrame([{'id':recipe['id'], 'cuisine': recipe['cuisine'], 'ingredients':sep.join(recipe['ingredients'])} for recipe in recipes_train_json],columns=['id','cuisine','ingredients'])
 
+# Tokenizer for the ingredient list strings
 def tokenize(s):
     return s.split(sep)
 
