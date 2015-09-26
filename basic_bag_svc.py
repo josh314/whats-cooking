@@ -30,7 +30,7 @@ def tokenize(s):
     return s.split(sep)
 
 
-# Build SGD Classifier pipeline
+# Build SVC Classifier pipeline
 text_clf = Pipeline([('vect', CountVectorizer(vocabulary=ingredients_master_list,tokenizer=tokenize)),
                       ('clf', SVC(C=100.0, gamma=1e-3)),
 ])
