@@ -17,8 +17,9 @@ import pandas as pd
 import numpy as np
 import unicodedata
 import re
-from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.pipeline import Pipeline
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.linear_model import SGDClassifier
 import sklearn.cross_validation as CV
 from sklearn.grid_search import GridSearchCV
@@ -35,7 +36,8 @@ def tokenize(string):#Ignores special characters and punct
     return re.compile('\w\w+').findall(string)
 
 def ngrammer(tokens):#Gets all grams in each ingredient
-    return [":".join(tokens[idx:idx+n]) for n in np.arange(1,1 + min(1,len(tokens))) for idx in range(len(tokens) + 1 - n)]
+    max_n = 1
+    return [":".join(tokens[idx:idx+n]) for n in np.arange(1,1 + min(max_n,len(tokens))) for idx in range(len(tokens) + 1 - n)]
 
 print("Importing training data...")
 with open('/Users/josh/dev/kaggle/whats-cooking/data/train.json','rt') as file:
@@ -58,14 +60,17 @@ recipes_train = pd.DataFrame([{'cuisine': recipe['cuisine'], 'ingredients': " ".
 
 # Build SGD Classifier pipeline
 text_clf = Pipeline([('vect', CountVectorizer(vocabulary=vocabulary)),
-                      ('clf', SGDClassifier(loss='log', penalty='elasticnet', n_iter=5, alpha=1e-4, random_state=seed)),
+                     ('tfidf', TfidfTransformer(use_idf=True)),
+                     ('clf', SGDClassifier(loss='log', penalty='elasticnet', n_iter=10, alpha=1e-5, random_state=seed)),
 ])
 # Grid search over svm classifiers. 
 parameters = {
-#    'clf__penalty': ('l1', 'l2'),
-    'clf__loss': ('hinge', 'log', 'modified_huber', 'squared_hinge', 'perceptron'),#'hinge', 'log', 'modified_huber', 'squared_hinge', 'perceptron'
-    'clf__l1_ratio': np.linspace( 0, 1.0, 6),
-    'clf__alpha': np.logspace( -5, -2, 5),
+    'clf__alpha': np.logspace( -5, -3, 3),
+#    'clf__loss': ('log', 'modified_huber', ),#'hinge', 'log', 'modified_huber', 'squared_hinge', 'perceptron', 'squared_loss', 'huber', 'epsilon_insensitive', or 'squared_epsilon_insensitive'
+#    'clf__penalty': ('l1', 'l2', 'elasticnet'),
+    'clf__l1_ratio': np.linspace( 0, 1.0, 21),
+#    'tfidf__use_idf': (True, False),
+#    'tfidf__norm': ('l1','l2'),
 }
 
 # Split data into a fitting set and a validation set
@@ -101,7 +106,7 @@ with open('/Users/josh/dev/kaggle/whats-cooking/data/test.json','rt') as file:
     recipes_test_json = json.load(file)
 
 # Build the grams for the test data
-print('\nBuilding n-grams from input data...')
+print('\nBuilding n-grams from test data...')
 for recipe in recipes_test_json:
     recipe['grams'] = [term for ingredient in recipe['ingredients'] for term in ngrammer(tokenize(normalize(ingredient)))]
 
@@ -111,7 +116,7 @@ recipes_test = pd.DataFrame([{'ingredients': " ".join(recipe['grams'])} for reci
 
 # Test data predictions & evaluation
 test_data = recipes_test['ingredients'].values
-print("Applying to test data...")
+print("Computing test data predictions...")
 predicted = gs_clf.predict(test_data)
 
 # Out to file
