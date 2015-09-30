@@ -17,6 +17,7 @@ import pandas as pd
 import numpy as np
 import unicodedata
 import re
+from collections import Counter
 from sklearn.pipeline import Pipeline
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
@@ -51,8 +52,11 @@ print('\nBuilding n-grams from input data...')
 for recipe in recipes_train_json:
     recipe['grams'] = [term for ingredient in recipe['ingredients'] for term in ngrammer(tokenize(normalize(ingredient)))]
 
-# Build vocabulary from training data grams
-vocabulary = sorted(list({term for recipe in recipes_train_json for term in recipe['grams']}))
+# Build vocabulary from training data grams. We'll remove grams that appear too much (stop words) or too little. The cut-offs are pretty arbitrary, TBH
+ingredient_counts = Counter()
+for recipe in recipes_train_json:
+    for i in recipe['grams']: ingredient_counts[i]+=1
+vocabulary = [gram for gram in ingredient_counts.keys() if 5 < ingredient_counts[gram] < 20000]
 
 # Stuff everything into a dataframe. 
 ids_index = pd.Index([recipe['id'] for recipe in recipes_train_json],name='id')
@@ -65,9 +69,9 @@ text_clf = Pipeline([('vect', CountVectorizer(vocabulary=vocabulary)),
 ])
 # Grid search over svm classifiers. 
 parameters = {
-    'clf__C': np.logspace(-3,2,6),
+    'clf__C': np.linspace( 1.0 , 10.0 , 10),
     'clf__loss': ('hinge','squared_hinge'),
-#    'clf__penalty': ('l1', 'l2'),
+    'clf__penalty': ('l1', 'l2'),
 }
 
 #CV.StratifiedShuffleSplit(reciped_train['cuisine'].values)
