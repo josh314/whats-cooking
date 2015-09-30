@@ -61,16 +61,17 @@ recipes_train = pd.DataFrame([{'cuisine': recipe['cuisine'], 'ingredients': " ".
 # Build SGD Classifier pipeline
 text_clf = Pipeline([('vect', CountVectorizer(vocabulary=vocabulary)),
                      ('tfidf', TfidfTransformer(use_idf=True)),
-                     ('clf', SGDClassifier(loss='log', penalty='elasticnet', n_iter=10, alpha=1e-5, random_state=seed)),
+                     ('clf', SGDClassifier(loss='log', penalty='elasticnet', n_iter=25, alpha=1e-5, random_state=seed)),
 ])
 # Grid search over svm classifiers. 
 parameters = {
-    'clf__alpha': np.logspace( -5, -3, 3),
-#    'clf__loss': ('log', 'modified_huber', ),#'hinge', 'log', 'modified_huber', 'squared_hinge', 'perceptron', 'squared_loss', 'huber', 'epsilon_insensitive', or 'squared_epsilon_insensitive'
+    'clf__alpha': (1e-6, 5e-6, 1e-5, 5e-5, 1e-4),
+    'clf__loss': ('log', 'modified_huber', 'hinge', ),#'hinge', 'log', 'modified_huber', 'squared_hinge', 'perceptron', 'squared_loss', 'huber', 'epsilon_insensitive', or 'squared_epsilon_insensitive'
 #    'clf__penalty': ('l1', 'l2', 'elasticnet'),
-    'clf__l1_ratio': np.linspace( 0, 1.0, 21),
+    'clf__l1_ratio': np.linspace( 0.0, 1.0, 11),
+    'clf__fit_intercept': (True, False), 
 #    'tfidf__use_idf': (True, False),
-#    'tfidf__norm': ('l1','l2'),
+#    'tfidf__norm': ('l1','l2', None),
 }
 
 # Split data into a fitting set and a validation set
