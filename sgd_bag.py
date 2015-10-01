@@ -17,12 +17,15 @@ import pandas as pd
 import numpy as np
 import unicodedata
 import re
+from collections import Counter
 from sklearn.pipeline import Pipeline
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.linear_model import SGDClassifier
 import sklearn.cross_validation as CV
 from sklearn.grid_search import GridSearchCV
+from sklearn.decomposition import RandomizedPCA
+from nltk.stem import WordNetLemmatizer
 
 # Seed for randomization. Set to some definite integer for debugging and set to None for production
 seed = None
@@ -32,8 +35,9 @@ seed = None
 def normalize(string):#Remove diacritics and whatevs
     return "".join(ch.lower() for ch in unicodedata.normalize('NFD', string) if not unicodedata.combining(ch))
 
+wnl = WordNetLemmatizer()
 def tokenize(string):#Ignores special characters and punct
-    return re.compile('\w\w+').findall(string)
+    return [wnl.lemmatize(token) for token in re.compile('\w\w+').findall(string)]
 
 def ngrammer(tokens):#Gets all grams in each ingredient
     max_n = 1
@@ -51,33 +55,40 @@ print('\nBuilding n-grams from input data...')
 for recipe in recipes_train_json:
     recipe['grams'] = [term for ingredient in recipe['ingredients'] for term in ngrammer(tokenize(normalize(ingredient)))]
 
-# Build vocabulary from training data grams
-vocabulary = sorted(list({term for recipe in recipes_train_json for term in recipe['grams']}))
+# Build vocabulary from training data grams. We'll remove grams that appear too much (stop words) or too little. The cut-offs are pretty arbitrary, TBH
+ingredient_counts = Counter()
+for recipe in recipes_train_json:
+    for i in recipe['grams']: ingredient_counts[i]+=1
+vocabulary = [gram for gram in ingredient_counts.keys()]# if 2 <= ingredient_counts[gram]]# <= 20000]
 
 # Stuff everything into a dataframe. 
 ids_index = pd.Index([recipe['id'] for recipe in recipes_train_json],name='id')
 recipes_train = pd.DataFrame([{'cuisine': recipe['cuisine'], 'ingredients': " ".join(recipe['grams'])} for recipe in recipes_train_json],columns=['cuisine','ingredients'], index=ids_index)
 
-# Build SGD Classifier pipeline
-text_clf = Pipeline([('vect', CountVectorizer(vocabulary=vocabulary)),
-                     ('tfidf', TfidfTransformer(use_idf=True)),
-                     ('clf', SGDClassifier(loss='log', penalty='elasticnet', n_iter=25, alpha=1e-5, random_state=seed)),
-])
-# Grid search over svm classifiers. 
-parameters = {
-    'clf__alpha': (1e-6, 5e-6, 1e-5, 5e-5, 1e-4),
-    'clf__loss': ('log', 'modified_huber', 'hinge', ),#'hinge', 'log', 'modified_huber', 'squared_hinge', 'perceptron', 'squared_loss', 'huber', 'epsilon_insensitive', or 'squared_epsilon_insensitive'
-#    'clf__penalty': ('l1', 'l2', 'elasticnet'),
-    'clf__l1_ratio': np.linspace( 0.0, 1.0, 11),
-    'clf__fit_intercept': (True, False), 
-#    'tfidf__use_idf': (True, False),
-#    'tfidf__norm': ('l1','l2', None),
-}
 
-# Split data into a fitting set and a validation set
+# Extract data for fitting
 #fit_data, val_data, fit_target, val_target = CV.train_test_split( recipes_train['ingredients'].values, recipes_train['cuisine'].values, test_size=0.05, random_state=seed)
 fit_data = recipes_train['ingredients'].values
 fit_target = recipes_train['cuisine'].values
+
+
+# Build SGD Classifier pipeline
+text_clf = Pipeline([('vect', CountVectorizer(vocabulary=vocabulary)),
+                     ('tfidf', TfidfTransformer(use_idf=True)),
+                     ('pca', RandomizedPCA(n_components=np.ceil(len(vocabulary)/2), random_state=seed)),
+                     ('clf', SGDClassifier(loss='log', penalty='l2', n_iter=10, alpha=1e-5, random_state=seed)),
+])
+# Grid search over svm classifiers. 
+parameters = {
+#    'pca__n_components': np.linscale(np.ceil(len(vocabulary)/2),len(vocabulary), 4 ),
+    'clf__alpha': ( 5e-6, 7.5e-6, 1e-5, 2.5e-5, 5e-5,  ),
+    'clf__loss': ('log', 'modified_huber', 'hinge', ),#'hinge', 'log', 'modified_huber', 'squared_hinge', 'perceptron', 'squared_loss', 'huber', 'epsilon_insensitive', or 'squared_epsilon_insensitive'
+#    'clf__penalty': ('l1', 'l2', 'elasticnet'),
+#    'clf__l1_ratio': np.linspace( 0.0, 1.0, 6),
+#    'clf__fit_intercept': (True, False), 
+#    'tfidf__use_idf': (True, False),
+#    'tfidf__norm': ('l1','l2', None),
+}
 
 # Init GridSearchCV with k-fold CV object
 cv = CV.KFold(len(fit_data), n_folds=3, shuffle=True, random_state=seed)
@@ -124,4 +135,4 @@ predicted = gs_clf.predict(test_data)
 recipes_test.drop('ingredients',axis=1,inplace=True)
 recipes_test.insert(0,'cuisine',predicted)
 print("Saving predictions to file...\n")
-recipes_test.to_csv('/Users/josh/dev/kaggle/whats-cooking/sub/ngram_bag_sgd_grid.csv',index=True)
+recipes_test.to_csv('/Users/josh/dev/kaggle/whats-cooking/sub/sgd_bag.csv',index=True)
