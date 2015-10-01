@@ -24,7 +24,6 @@ from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.linear_model import SGDClassifier
 import sklearn.cross_validation as CV
 from sklearn.grid_search import GridSearchCV
-from sklearn.decomposition import RandomizedPCA
 from nltk.stem import WordNetLemmatizer
 
 # Seed for randomization. Set to some definite integer for debugging and set to None for production
@@ -75,7 +74,6 @@ fit_target = recipes_train['cuisine'].values
 # Build SGD Classifier pipeline
 text_clf = Pipeline([('vect', CountVectorizer(vocabulary=vocabulary)),
                      ('tfidf', TfidfTransformer(use_idf=True)),
-                     ('pca', RandomizedPCA(n_components=np.ceil(len(vocabulary)/2), random_state=seed)),
                      ('clf', SGDClassifier(loss='log', penalty='l2', n_iter=10, alpha=1e-5, random_state=seed)),
 ])
 # Grid search over svm classifiers. 
