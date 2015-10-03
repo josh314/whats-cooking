@@ -3,12 +3,13 @@
 Feature extraction:
  From the list of unprocessed ingredient strings:
  *) Tokenizes individual ingredient strings.
- *) Gets n=1,2,3 n-grams.
- *) Terms in n-grams are joined by '::'
+ *) Gets n-grams (n is hardcoded as `max_n` in the `ngrammer` function).
+ *) Terms in n-grams are joined by ':'
  *) All n-grams for a given recipe are then joined into a single string separated by spaces 
-    e.g. ['garlic powder', 'onions'] --> 'garlic powder garlic::powder onions'
+    e.g. ['garlic powder', 'onions'] --> 'garlic powder garlic:powder onions'
  *) These strings are treated as a corpus of documents to which a bag of words model is applied
- *) Classification performed with a SGD classifier
+ *) Vocabulary built from list of n-grams (can exclude those that appear too often or too rarely)
+ *) Classification performed with LinearSVC
 
 """
 
@@ -56,7 +57,7 @@ for recipe in recipes_train_json:
 ingredient_counts = Counter()
 for recipe in recipes_train_json:
     for i in recipe['grams']: ingredient_counts[i]+=1
-vocabulary = [gram for gram in ingredient_counts.keys() if 5 < ingredient_counts[gram] < 20000]
+vocabulary = [gram for gram in ingredient_counts.keys() if 0 < ingredient_counts[gram] < 20000]
 
 # Stuff everything into a dataframe. 
 ids_index = pd.Index([recipe['id'] for recipe in recipes_train_json],name='id')
@@ -69,9 +70,8 @@ text_clf = Pipeline([('vect', CountVectorizer(vocabulary=vocabulary)),
 ])
 # Grid search over svm classifiers. 
 parameters = {
-    'clf__C': np.linspace( 1.0 , 10.0 , 10),
-    'clf__loss': ('hinge','squared_hinge'),
-    'clf__penalty': ('l1', 'l2'),
+    'clf__C': np.linspace( .05 , 1  , 20),
+    'clf__loss': ('squared_hinge',),
 }
 
 #CV.StratifiedShuffleSplit(reciped_train['cuisine'].values)
