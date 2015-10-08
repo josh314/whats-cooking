@@ -70,44 +70,40 @@ recipes_train = pd.DataFrame([{'cuisine': recipe['cuisine'], 'ingredients': " ".
 fit_data = recipes_train['ingredients'].values
 fit_target = recipes_train['cuisine'].values
 
-
-# Build SGD Classifier pipeline
-text_clf = Pipeline([('vect', CountVectorizer(vocabulary=vocabulary)),
-                     ('tfidf', TfidfTransformer(use_idf=True)),
-                     ('clf', SGDClassifier(loss='log', penalty='l2', n_iter=10, alpha=1e-5, random_state=seed)),
+# extracting numerical features from the ingredient text
+feature_ext = Pipeline([('vect', CountVectorizer(vocabulary=vocabulary)),
+                        ('tfidf', TfidfTransformer(use_idf=True)),
 ])
+tfidf_fit_data = feature_ext.fit_transform(fit_data)
+
+# Build SGD Classifier
+clf =  SGDClassifier(loss='log', penalty='l2', n_iter=10, alpha=1e-5, random_state=seed)
 # Grid search over svm classifiers. 
 parameters = {
-#    'pca__n_components': np.linscale(np.ceil(len(vocabulary)/2),len(vocabulary), 4 ),
-    'clf__alpha': ( 5e-6, 7.5e-6, 1e-5, 2.5e-5, 5e-5,  ),
-    'clf__loss': ('log', 'modified_huber', 'hinge', ),#'hinge', 'log', 'modified_huber', 'squared_hinge', 'perceptron', 'squared_loss', 'huber', 'epsilon_insensitive', or 'squared_epsilon_insensitive'
-#    'clf__penalty': ('l1', 'l2', 'elasticnet'),
-#    'clf__l1_ratio': np.linspace( 0.0, 1.0, 6),
-#    'clf__fit_intercept': (True, False), 
-#    'tfidf__use_idf': (True, False),
-#    'tfidf__norm': ('l1','l2', None),
+    'alpha': ( 5e-6, 7.5e-6, 1e-5, 2.5e-5, 5e-5,  ),
+    'loss': ('log', 'modified_huber', 'hinge', ),#'hinge', 'log', 'modified_huber', 'squared_hinge', 'perceptron', 'squared_loss', 'huber', 'epsilon_insensitive', or 'squared_epsilon_insensitive'
+#    'penalty': ('l1', 'l2', 'elasticnet'),
+#    'l1_ratio': np.linspace( 0.0, 1.0, 6),
 }
 
 # Init GridSearchCV with k-fold CV object
-cv = CV.KFold(len(fit_data), n_folds=3, shuffle=True, random_state=seed)
+cv = CV.KFold(tfidf_fit_data.shape[0], n_folds=3, shuffle=True, random_state=seed)
 gs_clf = GridSearchCV(
-    estimator=text_clf,
+    estimator=clf,
     param_grid=parameters,
     n_jobs=-1,
     cv=cv,
     scoring='accuracy',
     verbose=2    
 )
-
-# Fit on data subset
+# Fit on training data
 print("\nPerforming grid search over hyperparameters...")
-gs_clf.fit(fit_data, fit_target)
+gs_clf.fit(tfidf_fit_data, fit_target)
 
 print("\nTop scoring models under cross-validation:\n")
 top_grid_scores = sorted(gs_clf.grid_scores_, key=lambda x: x[1], reverse=True)[:min(25,len(gs_clf.grid_scores_))]
 for x in top_grid_scores:
     print(x)
-
 
 
 # Import competition test data
@@ -126,8 +122,10 @@ recipes_test = pd.DataFrame([{'ingredients': " ".join(recipe['grams'])} for reci
 
 # Test data predictions & evaluation
 test_data = recipes_test['ingredients'].values
+print("Transforming test data...")
+tfidf_test_data = feature_ext.transform(test_data) 
 print("Computing test data predictions...")
-predicted = gs_clf.predict(test_data)
+predicted = gs_clf.predict(tfidf_test_data)
 
 # Out to file
 recipes_test.drop('ingredients',axis=1,inplace=True)
